@@ -30,5 +30,23 @@ namespace MifareDump
 
             return llaves;
         }
+
+        public static List<string> CargarArchivoClonacion()
+        {
+            List<string> bloques = new List<string>();
+            FileInfo fi = new FileInfo("StagingFile.txt");
+            string bloque;
+            if (fi.Exists)
+            {
+                StreamReader sr = fi.OpenText();
+                while ((bloque = sr.ReadLine()) != null)
+                {
+                    bloques.Add(bloque);
+                }
+                sr.Close();
+            }
+
+            return bloques;
+        }
     }
 }

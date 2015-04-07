@@ -72,11 +72,64 @@ namespace MifareDump
             }
 
             //Autenticacion(hCard);
-           Dump(hCard);
+           Dump(hCard, true,false);
            
         }
 
-        public void Dump(IntPtr hCard)
+        public void CargarLlaves(IntPtr hCard)
+        {
+            HiDWinscard.SCARD_IO_REQUEST sioreq;
+            sioreq.dwProtocol = 0x2;
+            sioreq.cbPciLength = 8;
+            HiDWinscard.SCARD_IO_REQUEST rioreq;
+            rioreq.cbPciLength = 8;
+            rioreq.dwProtocol = 0x2;
+
+            byte pos = 0;
+
+            for(byte i = 0; i < 16; i++)
+            {
+                Byte[] str3 = HexToBytenByteToHex.GetBytes("FFFFFFFFFFFF", out discarded); //Encoding.ASCII.GetBytes(keych1);    
+                bcla = 0xFF;
+                bins = 0x82;
+                bp1 = 0x20;
+                bp2 = pos;
+                len = 0x6;
+                sendBuffer[0] = bcla;
+                sendBuffer[1] = bins;
+                sendBuffer[2] = bp1;
+                sendBuffer[3] = bp2;
+                sendBuffer[4] = len;
+                for (int k = 0; k <= str3.Length - 1; k++)
+                    sendBuffer[k + 5] = str3[k];
+                sendbufferlen = 0xB;
+                receivebufferlen = 255;
+                retval = HID.SCardTransmit(hCard, ref sioreq, sendBuffer, sendbufferlen, ref rioreq, receiveBuffer, ref receivebufferlen);
+                if (retval == 0)
+                {
+                    if ((receiveBuffer[receivebufferlen - 2] == 0x90) && (receiveBuffer[receivebufferlen - 1] == 0))
+                    {
+                        Console.WriteLine("Llave FFFFFFFFFFFF cargada en posicion {0}", pos);
+
+                    }
+                    else
+                    {
+                        Console.WriteLine("Llave FFFFFFFFFFFF con error al cargar en lector");
+                    }
+                }
+                else
+                {
+
+                }
+                pos++;
+            }
+
+            //Autenticacion(hCard);
+            Dump(hCard, true,true);
+
+        }
+
+        public void Dump(IntPtr hCard, bool isCarga, bool llaveDefecto)
         {
             String read_str;
             HiDWinscard.SCARD_IO_REQUEST sioreq;
@@ -87,13 +140,16 @@ namespace MifareDump
             rioreq.dwProtocol = 0x2;
             StringBuilder sb = new StringBuilder();
 
-            Console.WriteLine("================================");
-            Console.WriteLine("=========== SECTOR 0 ===========");
-            Console.WriteLine("================================");
+            if (!isCarga)
+            {
+                Console.WriteLine("================================");
+                Console.WriteLine("=========== SECTOR 0 ===========");
+                Console.WriteLine("================================");
 
-            sb.AppendLine("================================");
-            sb.AppendLine("=========== SECTOR 0 ===========");
-            sb.AppendLine("================================");
+                sb.AppendLine("================================");
+                sb.AppendLine("=========== SECTOR 0 ===========");
+                sb.AppendLine("================================"); 
+            }
 
             byte c = 1;
             byte sec = 0;
@@ -168,7 +224,125 @@ namespace MifareDump
                         sb.AppendLine("NULL");
                     }
                 }
-                
+
+                if (c % 4 == 0 && c != 64)
+                {
+                    if (!llaveDefecto)
+                    {
+                        keynum += 2; 
+                    }
+                    else
+                    {
+                        keynum += 1;
+                    }
+                    if (!isCarga)
+                    {
+                        sec++;
+                        Console.WriteLine("================================");
+                        Console.WriteLine("=========== SECTOR {0} ===========", sec);
+                        Console.WriteLine("================================");
+                        sb.AppendLine("================================");
+                        sb.AppendLine(string.Format("=========== SECTOR {0} ===========", sec));
+                        sb.AppendLine("================================"); 
+                    }
+                } 
+                c++;
+            }
+
+            if (!isCarga)
+            {
+                File.WriteAllText("DumpBIP.txt", sb.ToString()); 
+            }
+            else
+            {
+                File.WriteAllText("StagingFile.txt", sb.ToString());
+            }
+        }
+
+        public void VolcadoMemoriaTarjetaFisica(IntPtr hCard)
+        {
+            String read_str;
+            HiDWinscard.SCARD_IO_REQUEST sioreq;
+            sioreq.dwProtocol = 0x2;
+            sioreq.cbPciLength = 8;
+            HiDWinscard.SCARD_IO_REQUEST rioreq;
+            rioreq.cbPciLength = 8;
+            rioreq.dwProtocol = 0x2;
+
+            byte c = 1;
+            byte sec = 0;
+            byte keynum = 0;
+
+            for (byte i = 0; i < 64; i++)
+            {
+
+                bcla = 0xFF;
+                bins = 0x86;
+                bp1 = 0x0;
+                bp2 = 0x0;//'currentBlock
+                len = 0x5;
+                sendBuffer[0] = bcla;
+                sendBuffer[1] = bins;
+                sendBuffer[2] = bp1;
+                sendBuffer[3] = bp2;
+
+                sendBuffer[4] = len;
+                sendBuffer[5] = 0x1;           //Version
+                sendBuffer[6] = 0x0;           //Address MSB
+                sendBuffer[7] = i;  //Address LSB
+
+                sendBuffer[8] = 0x60; //Key Type A
+                sendBuffer[9] = keynum;
+
+
+
+                sendbufferlen = 0xA;
+                receivebufferlen = 255;
+                retval = HID.SCardTransmit(hCard, ref sioreq, sendBuffer, sendbufferlen, ref rioreq, receiveBuffer, ref receivebufferlen);
+                if (retval == 0)
+                {
+                    if ((receiveBuffer[receivebufferlen - 2] == 0x90) && (receiveBuffer[receivebufferlen - 1] == 0))
+                    {
+                        //Console.WriteLine("Bloque {0} Autenticado", i);
+                    }
+                    else
+                    {
+                        Console.WriteLine("Bloque {0} Fallo", i);
+                        
+                    }
+                }
+
+
+
+                bcla = 0xFF;
+                bins = 0xB0;
+                bp1 = 0x0;
+                bp2 = i;
+                sendBuffer[0] = bcla;
+                sendBuffer[1] = bins;
+                sendBuffer[2] = bp1;
+                sendBuffer[3] = bp2;
+                sendBuffer[4] = 0x0;
+                sendbufferlen = 0x5;
+                receivebufferlen = 0x12;
+
+                retval = HID.SCardTransmit(hCard, ref sioreq, sendBuffer, sendbufferlen, ref rioreq, receiveBuffer, ref receivebufferlen);
+                if (retval == 0)
+                {
+                    if ((receiveBuffer[receivebufferlen - 2] == 0x90) && (receiveBuffer[receivebufferlen - 1] == 0))
+                    {
+
+                        read_str = HexToBytenByteToHex.ToString(receiveBuffer);
+                        Console.WriteLine(read_str.Substring(0, ((int)(receivebufferlen - 2)) * 2));
+                        
+                    }
+                    else
+                    {
+                        Console.WriteLine("NULL");
+                        
+                    }
+                }
+
                 if (c % 4 == 0 && c != 64)
                 {
                     keynum += 2;
@@ -176,14 +350,12 @@ namespace MifareDump
                     Console.WriteLine("================================");
                     Console.WriteLine("=========== SECTOR {0} ===========", sec);
                     Console.WriteLine("================================");
-                    sb.AppendLine("================================");
-                    sb.AppendLine(string.Format("=========== SECTOR {0} ===========",sec));
-                    sb.AppendLine("================================");
+                    
                 }
                 c++;
             }
 
-            File.WriteAllText("DumpBIP.txt", sb.ToString());
+            
         }
     }
 }

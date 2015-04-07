@@ -133,7 +133,8 @@ namespace CS_ControlArmamento_CapturaRFID
                 Console.WriteLine("Tarjeta Conectada");
 
                 CardHandler card = new CardHandler();
-                card.CargarLlaves(hCard,FileHandler.ObtenerLlaves());
+                //card.CargarLlaves(hCard,FileHandler.ObtenerLlaves());
+                card.CargarLlaves(hCard);
 
                 system("pause");
             }
